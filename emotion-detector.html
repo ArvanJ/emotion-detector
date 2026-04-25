@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Emotion Detector</title>
+  <style>
+    :root {
+      --accent: #6366f1;
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border: #475569;
+      --bar-bg: #1e293b;
+      --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+      transition: background var(--transition);
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+      transition: color var(--transition);
+    }
+    header p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 0 0 2px var(--border);
+      transition: box-shadow var(--transition);
+    }
+
+    #video {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .status-bar {
+      text-align: center;
+      margin: 0.75rem 0;
+      font-size: 0.9rem;
+      color: var(--accent);
+      min-height: 1.4em;
+      transition: color var(--transition);
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    button {
+      padding: 0.55rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s, background var(--transition);
+      background: var(--surface2);
+      color: var(--text);
+    }
+    button:hover { opacity: 0.85; }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .panel {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      width: 100%;
+      max-width: 640px;
+      transition: background var(--transition), box-shadow var(--transition);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    .panel-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .dominant-emotion {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      transition: color var(--transition);
+      text-transform: capitalize;
+    }
+
+    .confidence {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .emotion-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .bar-label {
+      width: 80px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: capitalize;
+      flex-shrink: 0;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--bar-bg);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.3s ease, background var(--transition);
+    }
+
+    .bar-pct {
+      width: 40px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .legend {
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.8rem;
+    }
+    .legend-item {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .error-msg {
+      color: #f87171;
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .loader {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 0.75rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 480px) {
+      header h1 { font-size: 1.3rem; }
+      .bar-label { width: 60px; font-size: 0.72rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Live Emotion Detector</h1>
+    <p>Browser-based real-time facial emotion recognition</p>
+  </header>
+
+  <div id="loader" class="loader">
+    <div class="spinner"></div>
+    Loading models…
+  </div>
+
+  <div id="app" style="display:none; width:100%; max-width:640px;">
+    <div class="video-wrapper">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div id="status" class="status-bar">Initializing…</div>
+
+    <div class="controls">
+      <button id="btnStart">Start Camera</button>
+      <button id="btnStop" disabled>Stop Camera</button>
+      <button id="btnReset">Reset</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-top">
+        <span class="dominant-emotion" id="dominantEmotion">—</span>
+        <span class="confidence" id="confidence">—</span>
+      </div>
+      <div class="emotion-bars" id="emotionBars"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div id="errorDisplay" class="error-msg" style="display:none;"></div>
+  </div>
+
+  <!-- face-api.js -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <script>
+    'use strict';
+
+    // ── Emotion configuration ──────────────────────────────────────────────
+    const EMOTIONS = [
+      'neutral', 'happy', 'sad', 'angry',
+      'fearful', 'disgusted', 'surprised'
+    ];
+
+    // Accent colors per emotion
+    const EMOTION_COLORS = {
+      neutral:    '#6366f1',
+      happy:      '#f59e0b',
+      sad:        '#3b82f6',
+      angry:      '#ef4444',
+      fearful:    '#8b5cf6',
+      disgusted:  '#10b981',
+      surprised:  '#ec4899',
+    };
+
+    // Model CDN base
+    const MODEL_BASE = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const video        = document.getElementById('video');
+    const overlay      = document.getElementById('overlay');
+    const ctx          = overlay.getContext('2d');
+    const statusEl     = document.getElementById('status');
+    const domEmotion   = document.getElementById('dominantEmotion');
+    const domConfidence= document.getElementById('confidence');
+    const emotionBarsEl= document.getElementById('emotionBars');
+    const legendEl     = document.getElementById('legend');
+    const btnStart     = document.getElementById('btnStart');
+    const btnStop      = document.getElementById('btnStop');
+    const btnReset     = document.getElementById('btnReset');
+    const appEl        = document.getElementById('app');
+    const loaderEl     = document.getElementById('loader');
+    const errorEl      = document.getElementById('errorDisplay');
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let stream         = null;
+    let animationId    = null;
+    let lastDetectAt   = 0;
+    let modelsLoaded   = false;
+    let isRunning      = false;
+    let currentEmotion = null;
+    let currentColors  = {};
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    async function init() {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_BASE);
+        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_BASE);
+        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_BASE);
+        modelsLoaded = true;
+        loaderEl.style.display = 'none';
+        appEl.style.display = 'block';
+        buildUI();
+        setStatus('Camera ready — click Start Camera');
+      } catch (err) {
+        loaderEl.innerHTML = `<div class="error-msg">Failed to load models:<br>${err.message}</div>`;
+      }
+    }
+
+    // ── Build static UI ────────────────────────────────────────────────────
+    function buildUI() {
+      // Emotion bars
+      emotionBarsEl.innerHTML = EMOTIONS.map(em => `
+        <div class="bar-row" id="row-${em}">
+          <span class="bar-label">${em}</span>
+          <div class="bar-track"><div class="bar-fill" id="fill-${em}" style="background:${EMOTION_COLORS[em]}"></div></div>
+          <span class="bar-pct" id="pct-${em}">0%</span>
+        </div>
+      `).join('');
+
+      // Legend
+      legendEl.innerHTML = EMOTIONS.map(em => `
+        <span class="legend-item">
+          <span class="legend-dot" style="background:${EMOTION_COLORS[em]}"></span>${em}
+        </span>
+      `).join('');
+    }
+
+    // ── Camera controls ────────────────────────────────────────────────────
+    btnStart.addEventListener('click', startCamera);
+    btnStop.addEventListener('click', stopCamera);
+    btnReset.addEventListener('click', resetAll);
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        video.srcObject = stream;
+        await new Promise(resolve => { video.onloadedmetadata = resolve; });
+        resizeOverlay();
+        isRunning = true;
+        btnStart.disabled = true;
+        btnStop.disabled  = false;
+        setStatus('Detecting…');
+        detectLoop();
+      } catch (err) {
+        if (err.name === 'NotAllowedError') {
+          showError('Camera access denied. Please allow camera permissions and try again.');
+        } else {
+          showError(`Camera error: ${err.message}`);
+        }
+      }
+    }
+
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      isRunning = false;
+      if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+      video.srcObject = null;
+      btnStart.disabled = false;
+      btnStop.disabled  = true;
+      clearOverlay();
+      setStatus('Camera stopped');
+      resetPanel();
+    }
+
+    function resetAll() {
+      stopCamera();
+      errorEl.style.display = 'none';
+      setStatus('Reset complete — click Start Camera');
+    }
+
+    // ── Resize canvas to match video ───────────────────────────────────────
+    function resizeOverlay() {
+      overlay.width  = video.videoWidth;
+      overlay.height = video.videoHeight;
+    }
+
+    // ── Main detection loop (throttled ~6–8 FPS) ───────────────────────────
+    function detectLoop() {
+      if (!isRunning) return;
+      animationId = requestAnimationFrame(detectLoop);
+
+      const now = Date.now();
+      if (now - lastDetectAt < 140) return; // ~7 FPS
+      lastDetectAt = now;
+
+      const options = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 320,
+        scoreThreshold: 0.5
+      });
+
+      let result;
+      try {
+        result = await faceapi
+          .detectAllFaces(video, options)
+          .withFaceLandmarks(true)
+          .withFaceExpressions();
+      } catch {
+        return;
+      }
+
+      clearOverlay();
+
+      if (!result || result.length === 0) {
+        updateStatusText('No face detected', '#6366f1');
+        domEmotion.textContent = '—';
+        domConfidence.textContent = '—';
+        if (currentEmotion) applyEmotionTheme(null);
+        resetBarFills();
+        return;
+      }
+
+      // Use the most prominent face (largest bounding box)
+      const face = result.sort((a, b) => {
+        const aw = a.detection.box.width * a.detection.box.height;
+        const bw = b.detection.box.width * b.detection.box.height;
+        return bw - aw;
+      })[0];
+
+      if (result.length > 1) {
+        updateStatusText('Multiple faces — using most prominent', '#f59e0b');
+      } else {
+        updateStatusText('Detecting…', '#6366f1');
+      }
+
+      // Draw face box + emotion label on overlay
+      drawFaceOverlay(face);
+
+      // Update emotion panel
+      const expressions = face.expressions;
+      const probMap = {};
+      let dominant = { emotion: 'neutral', prob: 0 };
+      EMOTIONS.forEach(em => {
+        const prob = expressions[em] ?? 0;
+        probMap[em] = prob;
+        if (prob > dominant.prob) dominant = { emotion: em, prob };
+      });
+
+      updateBars(probMap);
+      applyEmotionTheme(dominant.emotion);
+      domEmotion.textContent = dominant.emotion;
+      domConfidence.textContent = `${(dominant.prob * 100).toFixed(1)}% confidence`;
+    }
+
+    // ── Draw canvas overlay ────────────────────────────────────────────────
+    function drawFaceOverlay(face) {
+      const { x, y, width, height } = face.detection.box;
+      const color = currentEmotion ? EMOTION_COLORS[currentEmotion] : '#6366f1';
+
+      // Face box
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.rect(x, y, width, height);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Label background
+      const label = currentEmotion ? currentEmotion.toUpperCase() : '';
+      const font = 'bold 13px Segoe UI, system-ui, sans-serif';
+      ctx.font = font;
+      const textW = ctx.measureText(label).width;
+      const padX = 6, padY = 4;
+      const lx = x, ly = y - 26;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(lx, ly, textW + padX * 2, 20, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, lx + padX, ly + 14);
+    }
+
+    // ── Update bar fills ────────────────────────────────────────────────────
+    function updateBars(probMap) {
+      EMOTIONS.forEach(em => {
+        const pct = Math.round((probMap[em] ?? 0) * 100);
+        const fill = document.getElementById(`fill-${em}`);
+        const pctEl = document.getElementById(`pct-${em}`);
+        if (fill) fill.style.width = `${pct}%`;
+        if (pctEl) pctEl.textContent = `${pct}%`;
+      });
+    }
+
+    function resetBarFills() {
+      EMOTIONS.forEach(em => {
+        const fill = document.getElementById(`fill-${em}`);
+        const pctEl = document.getElementById(`pct-${em}`);
+        if (fill) fill.style.width = '0%';
+        if (pctEl) pctEl.textContent = '0%';
+      });
+    }
+
+    function resetPanel() {
+      domEmotion.textContent = '—';
+      domConfidence.textContent = '—';
+      resetBarFills();
+      applyEmotionTheme(null);
+    }
+
+    // ── Theme color transitions ────────────────────────────────────────────
+    function applyEmotionTheme(emotion) {
+      if (emotion === currentEmotion) return;
+      currentEmotion = emotion;
+      const color = emotion ? EMOTION_COLORS[emotion] : '#6366f1';
+      document.documentElement.style.setProperty('--accent', color);
+      document.querySelector('header h1').style.color = color;
+    }
+
+    // ── Status helpers ──────────────────────────────────────────────────────
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+      statusEl.style.color = 'var(--accent)';
+    }
+
+    function updateStatusText(msg, color) {
+      statusEl.textContent = msg;
+      statusEl.style.color = color;
+    }
+
+    // ── Error helper ───────────────────────────────────────────────────────
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+
+    // ── Clear overlay ─────────────────────────────────────────────────────
+    function clearOverlay() {
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    // ── ResizeObserver to keep overlay sized correctly ────────────────────
+    const ro = new ResizeObserver(() => {
+      if (video.videoWidth && video.videoHeight) resizeOverlay();
+    });
+    ro.observe(video);
+
+    // ── Start ──────────────────────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>
