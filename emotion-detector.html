@@ -293,8 +293,11 @@
       surprised:  '#ec4899',
     };
 
-    // Model CDN base
-    const MODEL_BASE = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+    // Model CDN base — face-api.js official models
+    const MODEL_BASE = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/model';
+
+    // Fallback: vladmandic fork models (different structure)
+    const MODEL_FALLBACK = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     const video        = document.getElementById('video');
@@ -323,17 +326,36 @@
 
     // ── Init ───────────────────────────────────────────────────────────────
     async function init() {
-      try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_BASE);
-        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_BASE);
-        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_BASE);
+      // Try primary CDN, fall back to face-api.js official models
+      const sources = [MODEL_BASE, MODEL_FALLBACK];
+      let loaded = false;
+
+      for (const base of sources) {
+        try {
+          loaderEl.querySelector('.spinner').style.display = 'block';
+          loaderEl.innerHTML = `<div class="spinner"></div>Loading models from<br>${base}…`;
+          console.log(`[face-api] Attempting to load models from: ${base}`);
+
+          await faceapi.nets.tinyFaceDetector.loadFromUri(base);
+          await faceapi.nets.faceLandmark68TinyNet.loadFromUri(base);
+          await faceapi.nets.faceExpressionNet.loadFromUri(base);
+
+          console.log('[face-api] All models loaded successfully');
+          loaded = true;
+          break;
+        } catch (err) {
+          console.warn(`[face-api] Failed to load from ${base}:`, err.message);
+        }
+      }
+
+      if (loaded) {
         modelsLoaded = true;
         loaderEl.style.display = 'none';
         appEl.style.display = 'block';
         buildUI();
         setStatus('Camera ready — click Start Camera');
-      } catch (err) {
-        loaderEl.innerHTML = `<div class="error-msg">Failed to load models:<br>${err.message}</div>`;
+      } else {
+        loaderEl.innerHTML = `<div class="error-msg">Failed to load models from all sources.<br><br>Try one of these fixes:<br>1. Check your internet connection<br>2. Serve over HTTPS instead of HTTP<br>3. Download models locally (see README)<br><br>Error: ${err?.message ?? 'All CDNs failed'}</div>`;
       }
     }
 
