@@ -59,7 +59,7 @@ The app iterates over all 7 emotion probabilities and selects the one with the h
 | Face Detection | [face-api.js](https://github.com/vladmandic/face-api) (TinyFaceDetector) |
 | Landmark Detection | face-api.js (faceLandmark68TinyNet) |
 | Expression Analysis | face-api.js (FaceExpressionNet) |
-| Model Hosting | [@vladmandic/face-api](https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model) via jsDelivr CDN |
+| Model Hosting | [@vladmandic/face-api](https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model) via jsDelivr CDN |
 | Icons | None required (pure CSS/HTML) |
 
 ---
@@ -75,7 +75,7 @@ The app iterates over all 7 emotion probabilities and selects the one with the h
 ### Option 1 — Open Directly
 
 1. Clone or download the repository
-2. Open `emotion-detector.html` in your browser
+2. Open `index.html` in your browser
 
 > **Note:** Camera access requires the page to be served over `localhost` or `https`. Opening via `file://` will not work due to browser security restrictions on `getUserMedia`.
 
@@ -93,7 +93,7 @@ Then open **http://localhost:3000** in Chrome or Edge.
 
 1. Open the project in VS Code
 2. Install the **Live Server** extension
-3. Right-click `emotion-detector.html` and select **"Open with Live Server"**
+3. Right-click `index.html` and select **"Open with Live Server"**
 
 ### Option 4 — GitHub Pages
 
@@ -101,7 +101,7 @@ The project is deployed on GitHub Pages at:
 
 **https://ArvanJ.github.io/emotion-detector**
 
-> **Note:** Some browsers may restrict camera access on third-party hosted domains. If the camera does not work on GitHub Pages, use a local server instead.
+To publish your own copy: **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `(root)`**. GitHub Pages serves over HTTPS, which is all `getUserMedia` needs for camera access.
 
 ---
 
@@ -121,7 +121,7 @@ The project is deployed on GitHub Pages at:
 
 ```
 Emotion-Tracker/
-├── emotion-detector.html   # Complete single-file web app
+├── index.html             # Complete single-file web app
 ├── .gitignore             # Git ignore rules
 ├── README.md              # This file
 └── .git/                  # Git repository

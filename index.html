@@ -271,7 +271,7 @@
   </div>
 
   <!-- face-api.js -->
-  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
 
   <script>
     'use strict';
@@ -293,11 +293,9 @@
       surprised:  '#ec4899',
     };
 
-    // Model CDN base — face-api.js official models
-    const MODEL_BASE = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/model';
-
-    // Fallback: vladmandic fork models (different structure)
-    const MODEL_FALLBACK = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+    // Models from the maintained @vladmandic/face-api fork (TF.js 4), same version as the script
+    const MODEL_BASE = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model';
+    const MODEL_FALLBACK = 'https://unpkg.com/@vladmandic/face-api@1.7.15/model';
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     const video        = document.getElementById('video');
@@ -322,13 +320,20 @@
     let modelsLoaded   = false;
     let isRunning      = false;
     let currentEmotion = null;
-    let currentColors  = {};
+    let detecting      = false;
 
     // ── Init ───────────────────────────────────────────────────────────────
     async function init() {
       // Try primary CDN, fall back to face-api.js official models
       const sources = [MODEL_BASE, MODEL_FALLBACK];
       let loaded = false;
+      let lastErr = null;
+
+      try {
+        await faceapi.tf.setBackend('webgl');
+      } catch { /* falls back to whatever backend tfjs picks */ }
+      await faceapi.tf.ready();
+      console.log(`[face-api] TF.js backend: ${faceapi.tf.getBackend()}`);
 
       for (const base of sources) {
         try {
@@ -344,6 +349,7 @@
           loaded = true;
           break;
         } catch (err) {
+          lastErr = err;
           console.warn(`[face-api] Failed to load from ${base}:`, err.message);
         }
       }
@@ -355,7 +361,7 @@
         buildUI();
         setStatus('Camera ready — click Start Camera');
       } else {
-        loaderEl.innerHTML = `<div class="error-msg">Failed to load models from all sources.<br><br>Try one of these fixes:<br>1. Check your internet connection<br>2. Serve over HTTPS instead of HTTP<br>3. Download models locally (see README)<br><br>Error: ${err?.message ?? 'All CDNs failed'}</div>`;
+        loaderEl.innerHTML = `<div class="error-msg">Failed to load models from all sources.<br><br>Try one of these fixes:<br>1. Check your internet connection<br>2. Serve over HTTPS instead of HTTP<br>3. Download models locally (see README)<br><br>Error: ${lastErr?.message ?? 'All CDNs failed'}</div>`;
       }
     }
 
@@ -438,8 +444,13 @@
       animationId = requestAnimationFrame(detectLoop);
 
       const now = Date.now();
-      if (now - lastDetectAt < 140) return; // ~7 FPS
+      if (detecting || now - lastDetectAt < 140) return; // ~7 FPS, one inference at a time
       lastDetectAt = now;
+      detect();
+    }
+
+    async function detect() {
+      detecting = true;
 
       const options = new faceapi.TinyFaceDetectorOptions({
         inputSize: 320,
@@ -452,10 +463,14 @@
           .detectAllFaces(video, options)
           .withFaceLandmarks(true)
           .withFaceExpressions();
-      } catch {
+      } catch (err) {
+        console.warn('[face-api] Detection failed:', err);
         return;
+      } finally {
+        detecting = false;
       }
 
+      if (!isRunning) return; // camera stopped while inference was running
       clearOverlay();
 
       if (!result || result.length === 0) {
@@ -520,7 +535,7 @@
       ctx.font = font;
       const textW = ctx.measureText(label).width;
       const padX = 6, padY = 4;
-      const lx = x, ly = y - 26;
+      const lx = x, ly = Math.max(0, y - 26);
 
       ctx.fillStyle = color;
       ctx.beginPath();
